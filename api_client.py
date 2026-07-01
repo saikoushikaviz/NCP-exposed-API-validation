@@ -73,6 +73,7 @@ from config import (
     PREVIEW_EXPORT_URL, LIST_CONVERSATION_EXPORTS_URL,
     DOWNLOAD_USER_EXPORT_URL, PREVIEW_USER_EXPORT_URL,
     DELETE_EXPORT_URL,
+    LIST_PLATFORM_AGENTS_URL, EXECUTE_PLATFORM_AGENT_URL,
 )
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -1484,4 +1485,41 @@ def delete_export(project_id, export_id, token=None):
     )
     logger.info("Delete export project_id=%s export_id=%s → %s",
                 project_id, export_id, response.status_code)
+    return response
+
+
+# ─────────────────────────────────────────────
+# PLATFORM AGENTS APIs
+# ─────────────────────────────────────────────
+
+def get_platform_agents(token=None):
+    """List all platform agents with their tool schemas (agent catalog)."""
+    response = requests.get(
+        LIST_PLATFORM_AGENTS_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("List platform agents → %s", response.status_code)
+    return response
+
+
+def execute_platform_agent(agent_name, query, project_id=None, token=None, timeout=300):
+    """Execute a platform agent with a query and return the result.
+
+    Agent execution can be long-running (e.g. live device collection), so a
+    generous request timeout is applied by default.
+    """
+    url = EXECUTE_PLATFORM_AGENT_URL.format(agent_name=agent_name)
+    payload = {"query": query}
+    if project_id is not None:
+        payload["project_id"] = project_id
+
+    response = requests.post(
+        url,
+        json=payload,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+        timeout=timeout,
+    )
+    logger.info("Execute platform agent '%s' → %s", agent_name, response.status_code)
     return response

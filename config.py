@@ -232,3 +232,21 @@ TEST_EXPORT_ID              = 6
 # TEST_EXPORT_ID which the read/download/preview steps rely on. Update this to a
 # fresh, throwaway export_id before each run.
 TEST_EXPORT_DELETE_ID       = 5
+
+# =========================
+# PLATFORM AGENTS API ENDPOINTS
+# =========================
+LIST_PLATFORM_AGENTS_URL    = f"{NCP_BASE_URL}/api/v1/platform-agents"
+EXECUTE_PLATFORM_AGENT_URL  = f"{NCP_BASE_URL}/api/v1/platform-agents/{{agent_name}}/execute"
+
+# A known platform agent expected in the catalog (used for list verification)
+TEST_PLATFORM_AGENT_NAME = "metrics_agent"
+
+# Execute-agent test data. Defaults to a lightweight, deterministic query so the
+# functional test is reliable. To exercise the live-SSH audit example from the
+# spec instead, set:
+#   TEST_EXECUTE_AGENT_NAME  = "audit_report_agent"
+#   TEST_EXECUTE_AGENT_QUERY = "fetch live audit data for the device 10.4.6.11"
+TEST_EXECUTE_AGENT_NAME       = "metrics_agent"
+TEST_EXECUTE_AGENT_QUERY      = "How many devices are in the inventory?"
+TEST_EXECUTE_AGENT_PROJECT_ID = 2
