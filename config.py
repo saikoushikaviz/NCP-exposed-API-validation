@@ -172,6 +172,17 @@ DELETE_KB_FILE_URL      = f"{NCP_BASE_URL}/api/v1/knowledge_base/files/{{usernam
 # DASHBOARD API ENDPOINTS
 # =========================
 GET_DASHBOARD_METRICS_URL = f"{NCP_BASE_URL}/api/v1/dashboard/metrics"
+GET_SYSTEM_METRICS_URL    = f"{NCP_BASE_URL}/api/v1/dashboard/metrics/system"
+GET_GPU_METRICS_URL       = f"{NCP_BASE_URL}/api/v1/dashboard/metrics/gpu"
+GET_DOCKER_STATS_URL      = f"{NCP_BASE_URL}/api/v1/dashboard/metrics/docker"
+GENERATE_LOGS_URL         = f"{NCP_BASE_URL}/api/v1/dashboard/logs/generate"
+DOWNLOAD_LOGS_URL         = f"{NCP_BASE_URL}/api/v1/dashboard/logs/download/{{log_id}}"
+LIST_LOGS_URL             = f"{NCP_BASE_URL}/api/v1/dashboard/logs/list"
+
+# Dashboard test data
+TEST_GPU_LLM_NAME     = "gpt-oss-120b"   # llm_name filter for GPU metrics (DB03)
+TEST_DOCKER_STATS_LIMIT = 100            # row limit for docker stats (DB04)
+TEST_LOG_ID             = 1              # existing log_id to download (DB06)
 
 # =========================
 # ROCKETCHAT CONFIGURATION API ENDPOINTS

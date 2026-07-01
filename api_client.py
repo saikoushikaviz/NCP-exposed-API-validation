@@ -64,7 +64,8 @@ from config import (
     UPDATE_KB_FILE_URL, DELETE_KB_FILE_URL,
     GET_ALL_ROCKETCHAT_CONFIGS_URL, CREATE_ROCKETCHAT_CONFIG_URL,
     GET_ROCKETCHAT_CONFIG_URL, DELETE_ROCKETCHAT_CONFIG_URL,
-    GET_DASHBOARD_METRICS_URL,
+    GET_DASHBOARD_METRICS_URL, GET_SYSTEM_METRICS_URL, GET_GPU_METRICS_URL,
+    GET_DOCKER_STATS_URL, GENERATE_LOGS_URL, DOWNLOAD_LOGS_URL, LIST_LOGS_URL,
     LIST_PROJECT_FILES_URL, GET_PROJECT_FILE_URL,
     UPDATE_PROJECT_FILE_URL, DOWNLOAD_PROJECT_FILE_URL,
     LIST_ADMIN_FILES_URL, GET_ADMIN_FILE_URL,
@@ -1193,6 +1194,95 @@ def get_dashboard_metrics(range_type=None, from_ts=None, to_ts=None,
         verify=VERIFY_SSL,
     )
     logger.info("Get dashboard metrics → %s", response.status_code)
+    return response
+
+
+def get_system_metrics(start_time=None, end_time=None, token=None):
+    """Get system metrics (CPU/memory/disk time-series) with optional time range."""
+    params = {}
+    if start_time:
+        params["start_time"] = start_time
+    if end_time:
+        params["end_time"] = end_time
+
+    response = requests.get(
+        GET_SYSTEM_METRICS_URL,
+        params=params,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Get system metrics → %s", response.status_code)
+    return response
+
+
+def get_gpu_metrics(llm_name, start_time=None, end_time=None, token=None):
+    """Get GPU metrics for a given LLM model, with optional time range."""
+    params = {"llm_name": llm_name}
+    if start_time:
+        params["start_time"] = start_time
+    if end_time:
+        params["end_time"] = end_time
+
+    response = requests.get(
+        GET_GPU_METRICS_URL,
+        params=params,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Get GPU metrics (llm_name=%s) → %s", llm_name, response.status_code)
+    return response
+
+
+def get_docker_stats(limit=None, token=None):
+    """Get the latest docker stats for tabular display, with an optional row limit."""
+    params = {}
+    if limit is not None:
+        params["limit"] = limit
+
+    response = requests.get(
+        GET_DOCKER_STATS_URL,
+        params=params,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Get docker stats (limit=%s) → %s", limit, response.status_code)
+    return response
+
+
+def generate_logs(token=None):
+    """Trigger asynchronous log generation (reads from the local docker daemon)."""
+    response = requests.post(
+        GENERATE_LOGS_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Generate logs → %s", response.status_code)
+    return response
+
+
+def download_logs(log_id, token=None):
+    """Download the zipped docker logs for a given log_id (returns raw bytes response)."""
+    url = DOWNLOAD_LOGS_URL.format(log_id=log_id)
+    headers = _auth_headers(token)
+    headers.pop("Accept", None)
+    response = requests.get(
+        url,
+        headers=headers,
+        verify=VERIFY_SSL,
+        stream=True,
+    )
+    logger.info("Download logs log_id=%s → %s", log_id, response.status_code)
+    return response
+
+
+def list_logs(token=None):
+    """List all log archives."""
+    response = requests.get(
+        LIST_LOGS_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("List logs → %s", response.status_code)
     return response
 
 
