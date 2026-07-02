@@ -75,6 +75,10 @@ from config import (
     DOWNLOAD_USER_EXPORT_URL, PREVIEW_USER_EXPORT_URL,
     DELETE_EXPORT_URL,
     LIST_PLATFORM_AGENTS_URL, EXECUTE_PLATFORM_AGENT_URL,
+    PREVIEW_CRON_URL, CAN_CREATE_BG_JOB_URL, CREATE_BG_JOB_URL,
+    LIST_BG_JOBS_URL, ADMIN_ALL_BG_JOBS_URL, UPDATE_BG_JOB_URL,
+    GET_BG_JOB_URL, RUN_BG_JOB_NOW_URL, PAUSE_BG_JOB_URL, RESUME_BG_JOB_URL,
+    LIST_BG_JOB_RUNS_URL, GET_BG_JOB_RUN_URL, DELETE_BG_JOB_URL,
 )
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -1612,4 +1616,260 @@ def execute_platform_agent(agent_name, query, project_id=None, token=None, timeo
         timeout=timeout,
     )
     logger.info("Execute platform agent '%s' → %s", agent_name, response.status_code)
+    return response
+
+
+# ─────────────────────────────────────────────
+# BACKGROUND JOBS
+# ─────────────────────────────────────────────
+
+def preview_cron(cron_expression, timezone="UTC", token=None):
+    """Validate a CRON expression and return the next 5 fire times.
+
+    Used by the Job Creation wizard's "Schedule" step so the user can sanity
+    check the schedule before submitting.
+    """
+    payload = {"cron_expression": cron_expression, "timezone": timezone}
+
+    response = requests.post(
+        PREVIEW_CRON_URL,
+        json=payload,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Preview cron '%s' (%s) → %s",
+        cron_expression, timezone, response.status_code,
+    )
+    return response
+
+
+def can_create_background_job(token=None):
+    """Whether the caller's role can create / trigger background jobs.
+
+    Used by the FE to gate the "Schedule a job" entry points. Returns true for
+    admins, "Power user", and any custom role with can_create_background_job=true.
+    """
+    response = requests.get(
+        CAN_CREATE_BG_JOB_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Can create background job → %s", response.status_code)
+    return response
+
+
+def create_background_job(project_id, agent_name, prompt, cron_expression,
+                          name, timezone="UTC", notification_channels=None,
+                          slack_channel_ids=None, token=None):
+    """Create a recurring background job.
+
+    Validates the agent + CRON + project membership, persists the row, then
+    registers the schedule in redbeat. Same code path the LLM tool uses.
+    """
+    payload = {
+        "project_id":      project_id,
+        "agent_name":      agent_name,
+        "prompt":          prompt,
+        "cron_expression": cron_expression,
+        "timezone":        timezone,
+        "name":            name,
+    }
+    if notification_channels is not None:
+        payload["notification_channels"] = notification_channels
+    if slack_channel_ids is not None:
+        payload["slack_channel_ids"] = slack_channel_ids
+
+    response = requests.post(
+        CREATE_BG_JOB_URL,
+        json=payload,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Create background job '%s' (project_id=%s, agent=%s) → %s",
+        name, project_id, agent_name, response.status_code,
+    )
+    return response
+
+
+def list_background_jobs(project_id, mine_only=True, include_removed=False, token=None):
+    """List background jobs in a project.
+
+    By default returns only the caller's jobs. Pass mine_only=False to see all
+    jobs in the project (project-admin / Admin Console views).
+    """
+    params = {
+        "project_id":      project_id,
+        "mine_only":       mine_only,
+        "include_removed": include_removed,
+    }
+    response = requests.get(
+        LIST_BG_JOBS_URL,
+        params=params,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "List background jobs (project_id=%s, mine_only=%s, include_removed=%s) → %s",
+        project_id, mine_only, include_removed, response.status_code,
+    )
+    return response
+
+
+def admin_list_all_background_jobs(include_removed=False, token=None):
+    """List every background job across all projects (with project names).
+
+    Role-aware: admins see every job in the system; non-admins see only the
+    jobs they created across every project they belong to.
+    """
+    params = {"include_removed": include_removed}
+    response = requests.get(
+        ADMIN_ALL_BG_JOBS_URL,
+        params=params,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Admin list all background jobs (include_removed=%s) → %s",
+        include_removed, response.status_code,
+    )
+    return response
+
+
+def update_background_job(job_id, name=None, prompt=None, agent_name=None,
+                          trigger_type=None, cron_expression=None, timezone=None,
+                          notification_channels=None, slack_channel_ids=None,
+                          token=None):
+    """Edit an existing background job (partial update).
+
+    Only fields passed here are sent in the body and modified. If trigger_type
+    or cron_expression changes, the redbeat schedule is updated automatically.
+    """
+    payload = {}
+    if name is not None:                  payload["name"] = name
+    if prompt is not None:                payload["prompt"] = prompt
+    if agent_name is not None:            payload["agent_name"] = agent_name
+    if trigger_type is not None:          payload["trigger_type"] = trigger_type
+    if cron_expression is not None:       payload["cron_expression"] = cron_expression
+    if timezone is not None:              payload["timezone"] = timezone
+    if notification_channels is not None: payload["notification_channels"] = notification_channels
+    if slack_channel_ids is not None:     payload["slack_channel_ids"] = slack_channel_ids
+
+    url = UPDATE_BG_JOB_URL.format(job_id=job_id)
+    response = requests.patch(
+        url,
+        json=payload,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Update background job '%s' (fields=%s) → %s",
+        job_id, list(payload.keys()), response.status_code,
+    )
+    return response
+
+
+def get_background_job(job_id, token=None):
+    """Fetch a single background job. Accessible to any member of its project."""
+    url = GET_BG_JOB_URL.format(job_id=job_id)
+    response = requests.get(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Get background job '%s' → %s", job_id, response.status_code)
+    return response
+
+
+def run_background_job_now(job_id, token=None):
+    """Trigger an immediate one-off run of an existing job.
+
+    Enqueues the same Celery task the CRON schedule fires. Valid for both
+    scheduled and manual jobs; a removed job is not runnable.
+    """
+    url = RUN_BG_JOB_NOW_URL.format(job_id=job_id)
+    response = requests.post(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Run background job now '%s' → %s", job_id, response.status_code)
+    return response
+
+
+def pause_background_job(job_id, token=None):
+    """Pause an active job — unregisters the redbeat entry (DB row preserved).
+
+    No-op if the job is already paused.
+    """
+    url = PAUSE_BG_JOB_URL.format(job_id=job_id)
+    response = requests.post(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Pause background job '%s' → %s", job_id, response.status_code)
+    return response
+
+
+def resume_background_job(job_id, token=None):
+    """Resume a paused job — re-registers it in redbeat using its stored cron.
+
+    No-op if the job is already active.
+    """
+    url = RESUME_BG_JOB_URL.format(job_id=job_id)
+    response = requests.post(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Resume background job '%s' → %s", job_id, response.status_code)
+    return response
+
+
+def list_background_job_runs(job_id, token=None):
+    """List a job's runs and basic aggregates (execution history + stat cards)."""
+    url = LIST_BG_JOB_RUNS_URL.format(job_id=job_id)
+    response = requests.get(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("List background job runs '%s' → %s", job_id, response.status_code)
+    return response
+
+
+def get_background_job_run(job_id, message_id, token=None):
+    """Fetch a single run's metadata and output (Run Detail screen).
+
+    message_id is the id of the assistant message that holds the run's card and
+    output — the same handle returned by list_background_job_runs.
+    """
+    url = GET_BG_JOB_RUN_URL.format(job_id=job_id, message_id=message_id)
+    response = requests.get(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Get background job run '%s'/%s → %s",
+        job_id, message_id, response.status_code,
+    )
+    return response
+
+
+def delete_background_job(job_id, token=None):
+    """Permanently remove a job.
+
+    Unregisters the schedule, marks the job row removed (soft delete for audit),
+    and hard-deletes the result conversation.
+    """
+    url = DELETE_BG_JOB_URL.format(job_id=job_id)
+    response = requests.delete(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Delete background job '%s' → %s", job_id, response.status_code)
     return response

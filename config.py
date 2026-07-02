@@ -261,3 +261,67 @@ TEST_PLATFORM_AGENT_NAME = "metrics_agent"
 TEST_EXECUTE_AGENT_NAME       = "metrics_agent"
 TEST_EXECUTE_AGENT_QUERY      = "How many devices are in the inventory?"
 TEST_EXECUTE_AGENT_PROJECT_ID = 2
+
+# =========================
+# BACKGROUND JOBS API ENDPOINTS  (13 endpoints total)
+# =========================
+PREVIEW_CRON_URL       = f"{NCP_BASE_URL}/api/v1/background_jobs/cron/preview"
+CAN_CREATE_BG_JOB_URL  = f"{NCP_BASE_URL}/api/v1/background_jobs/user/can-create"
+CREATE_BG_JOB_URL      = f"{NCP_BASE_URL}/api/v1/background_jobs"
+LIST_BG_JOBS_URL       = f"{NCP_BASE_URL}/api/v1/background_jobs"
+ADMIN_ALL_BG_JOBS_URL  = f"{NCP_BASE_URL}/api/v1/background_jobs/admin/all"
+UPDATE_BG_JOB_URL      = f"{NCP_BASE_URL}/api/v1/background_jobs/{{job_id}}"
+GET_BG_JOB_URL         = f"{NCP_BASE_URL}/api/v1/background_jobs/{{job_id}}"
+RUN_BG_JOB_NOW_URL     = f"{NCP_BASE_URL}/api/v1/background_jobs/{{job_id}}/run-now"
+PAUSE_BG_JOB_URL       = f"{NCP_BASE_URL}/api/v1/background_jobs/{{job_id}}/pause"
+RESUME_BG_JOB_URL      = f"{NCP_BASE_URL}/api/v1/background_jobs/{{job_id}}/resume"
+LIST_BG_JOB_RUNS_URL   = f"{NCP_BASE_URL}/api/v1/background_jobs/{{job_id}}/runs"
+GET_BG_JOB_RUN_URL     = f"{NCP_BASE_URL}/api/v1/background_jobs/{{job_id}}/runs/{{message_id}}"
+DELETE_BG_JOB_URL      = f"{NCP_BASE_URL}/api/v1/background_jobs/{{job_id}}"
+
+# Preview Cron test data — a valid CRON expression the wizard would validate.
+TEST_CRON_EXPRESSION = "*/5 * * * *"
+TEST_CRON_TIMEZONE   = "UTC"
+
+# Can-create test data. superadmin is an admin, so the gate is expected to
+# return true. Set to False when running the suite as a restricted role.
+TEST_CAN_CREATE_BG_JOB_EXPECTED = True
+
+# Create Background Job test data. agent_name / project_id / slack channel are
+# environment-specific — update to values that exist in the target NCP instance.
+# The created job's job_id is captured at runtime and reused by later steps.
+TEST_BG_JOB_PROJECT_ID            = 1
+TEST_BG_JOB_AGENT_NAME            = "verizon-bigquery-agent"
+TEST_BG_JOB_PROMPT                = "List all the devices"
+TEST_BG_JOB_CRON                  = "*/6 * * * *"
+TEST_BG_JOB_TIMEZONE              = "UTC"
+TEST_BG_JOB_NAME                  = "List all the devices"
+TEST_BG_JOB_NOTIFICATION_CHANNELS = ["in_app", "slack"]
+TEST_BG_JOB_SLACK_CHANNEL_IDS     = ["C0B6M3KD9EZ"]
+
+# List Background Jobs test data.
+TEST_BG_JOBS_PROJECT_ID      = 1
+TEST_BG_JOBS_MINE_ONLY       = True
+TEST_BG_JOBS_INCLUDE_REMOVED = False
+
+# Admin List All Background Jobs test data.
+TEST_BG_JOBS_ADMIN_INCLUDE_REMOVED = False
+
+# Fallback job_id for the single-job steps (get / update / run / delete) when
+# BJ03 (create) has not populated a runtime job_id — e.g. running a step in
+# isolation. Point this at a real job_id in the target instance.
+TEST_BG_JOB_ID = "job-9cdd2631"
+
+# Fallback message_id (a single run) for the run-detail step when BJ11 (list
+# runs) has not captured one — e.g. running BJ12 in isolation. Point this at a
+# real run message_id belonging to TEST_BG_JOB_ID.
+TEST_BG_JOB_RUN_MESSAGE_ID = 809
+
+# Update Background Job (PATCH) test data — only these fields are modified.
+TEST_BG_JOB_UPDATE_NAME                  = "3 sigma anomalies"
+TEST_BG_JOB_UPDATE_PROMPT                = "List 3 sigma anomalies"
+TEST_BG_JOB_UPDATE_AGENT_NAME            = "verizon-bigquery-agent"
+TEST_BG_JOB_UPDATE_TRIGGER_TYPE          = "scheduled"
+TEST_BG_JOB_UPDATE_CRON                  = "*/6 * * * *"
+TEST_BG_JOB_UPDATE_TIMEZONE              = "UTC"
+TEST_BG_JOB_UPDATE_NOTIFICATION_CHANNELS = ["in_app"]
