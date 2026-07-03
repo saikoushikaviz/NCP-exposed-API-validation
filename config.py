@@ -4,7 +4,7 @@
 NCP_FRONTEND_URL = "https://10.4.5.10"
 NCP_LOGIN_URL = f"{NCP_FRONTEND_URL}/api/user/login"
 
-NCP_BASE_URL = "https://10.4.5.10:9001"
+NCP_BASE_URL = "https://10.4.5.10"
 
 NCP_USERNAME = "superadmin"
 NCP_PASSWORD = "Admin@123"
