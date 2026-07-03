@@ -79,6 +79,14 @@ from config import (
     LIST_BG_JOBS_URL, ADMIN_ALL_BG_JOBS_URL, UPDATE_BG_JOB_URL,
     GET_BG_JOB_URL, RUN_BG_JOB_NOW_URL, PAUSE_BG_JOB_URL, RESUME_BG_JOB_URL,
     LIST_BG_JOB_RUNS_URL, GET_BG_JOB_RUN_URL, DELETE_BG_JOB_URL,
+    ONBOARD_CUSTOM_AGENT_URL, LIST_CUSTOM_AGENTS_URL, BG_ELIGIBLE_AGENTS_URL,
+    GET_CUSTOM_AGENT_URL, DISABLE_CUSTOM_AGENT_URL, ENABLE_CUSTOM_AGENT_URL,
+    ENABLE_BG_CUSTOM_AGENT_URL, DISABLE_BG_CUSTOM_AGENT_URL,
+    ADMIN_LIST_CUSTOM_AGENTS_URL, MY_CUSTOM_AGENTS_URL, SUBMIT_CUSTOM_AGENT_URL,
+    UPDATE_CUSTOM_AGENT_VERSION_URL, APPROVE_CUSTOM_AGENT_URL,
+    DECLINE_CUSTOM_AGENT_URL, FEEDBACK_CUSTOM_AGENT_URL,
+    DOWNLOAD_CUSTOM_AGENT_URL, CAN_SUBMIT_AGENT_URL, DELETE_CUSTOM_AGENT_URL,
+    DELETE_USER_CUSTOM_AGENT_URL,
 )
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -1872,4 +1880,331 @@ def delete_background_job(job_id, token=None):
         verify=VERIFY_SSL,
     )
     logger.info("Delete background job '%s' → %s", job_id, response.status_code)
+    return response
+
+
+# ─────────────────────────────────────────────
+# CUSTOM AGENTS
+# ─────────────────────────────────────────────
+
+def onboard_custom_agent(file_path, update=None, token=None):
+    """Onboard a custom agent from a .ncp package (admin-only).
+
+    Uses multipart/form-data. Pass `update` (an existing agent name) to update
+    that agent instead of creating a new one.
+    """
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+
+    # Remove Content-Type so requests sets the multipart boundary.
+    auth_headers = _auth_headers(token)
+    headers = {
+        k: v for k, v in auth_headers.items()
+        if k.lower() != "content-type"
+    }
+    headers["Accept"] = "application/json"
+
+    params = {}
+    if update is not None:
+        params["update"] = update
+
+    with open(file_path, "rb") as f:
+        files = {"file": (os.path.basename(file_path), f, mime_type)}
+        response = requests.post(
+            ONBOARD_CUSTOM_AGENT_URL,
+            headers=headers,
+            files=files,
+            params=params,
+            verify=VERIFY_SSL,
+        )
+
+    logger.info(
+        "Onboard custom agent '%s' (update=%s) → %s",
+        os.path.basename(file_path), update, response.status_code,
+    )
+    return response
+
+
+def list_custom_agents(token=None):
+    """List all custom agents (admin-only)."""
+    response = requests.get(
+        LIST_CUSTOM_AGENTS_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("List custom agents → %s", response.status_code)
+    return response
+
+
+def list_background_eligible_agents(token=None):
+    """List custom agents eligible for background scheduling (all active agents)."""
+    response = requests.get(
+        BG_ELIGIBLE_AGENTS_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("List background-eligible custom agents → %s", response.status_code)
+    return response
+
+
+def get_custom_agent(agent_name, token=None):
+    """Get details of a custom agent by name (admin-only)."""
+    url = GET_CUSTOM_AGENT_URL.format(agent_name=agent_name)
+    response = requests.get(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Get custom agent '%s' → %s", agent_name, response.status_code)
+    return response
+
+
+def disable_custom_agent(agent_name, token=None):
+    """Disable a custom agent (admin-only) — not loaded into the orchestrator."""
+    url = DISABLE_CUSTOM_AGENT_URL.format(agent_name=agent_name)
+    response = requests.post(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Disable custom agent '%s' → %s", agent_name, response.status_code)
+    return response
+
+
+def enable_custom_agent(agent_name, token=None):
+    """Enable a disabled custom agent (admin-only)."""
+    url = ENABLE_CUSTOM_AGENT_URL.format(agent_name=agent_name)
+    response = requests.post(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Enable custom agent '%s' → %s", agent_name, response.status_code)
+    return response
+
+
+def enable_custom_agent_background(agent_name, token=None):
+    """Allow a custom agent to be scheduled as a background job (admin-only)."""
+    url = ENABLE_BG_CUSTOM_AGENT_URL.format(agent_name=agent_name)
+    response = requests.post(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Enable custom agent background '%s' → %s", agent_name, response.status_code,
+    )
+    return response
+
+
+def disable_custom_agent_background(agent_name, token=None):
+    """Revoke a custom agent's background-scheduling eligibility (admin-only).
+
+    Does NOT touch existing scheduled jobs — those fail at their next fire.
+    """
+    url = DISABLE_BG_CUSTOM_AGENT_URL.format(agent_name=agent_name)
+    response = requests.post(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Disable custom agent background '%s' → %s", agent_name, response.status_code,
+    )
+    return response
+
+
+def admin_list_custom_agents(token=None):
+    """List all custom agents for admin (ACTIVE / PENDING / REJECTED)."""
+    response = requests.get(
+        ADMIN_LIST_CUSTOM_AGENTS_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Admin list custom agents → %s", response.status_code)
+    return response
+
+
+def get_my_custom_agents(token=None):
+    """Get custom agents submitted by the authenticated user."""
+    response = requests.get(
+        MY_CUSTOM_AGENTS_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Get my custom agents → %s", response.status_code)
+    return response
+
+
+def submit_custom_agent(file_path, token=None):
+    """Upload/submit a new custom agent (role-aware).
+
+    Uses multipart/form-data. Admin submissions go straight to ACTIVE; regular
+    users' submissions land in PENDING (awaiting admin approval).
+    """
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+
+    # Remove Content-Type so requests sets the multipart boundary.
+    auth_headers = _auth_headers(token)
+    headers = {
+        k: v for k, v in auth_headers.items()
+        if k.lower() != "content-type"
+    }
+    headers["Accept"] = "application/json"
+
+    with open(file_path, "rb") as f:
+        files = {"file": (os.path.basename(file_path), f, mime_type)}
+        response = requests.post(
+            SUBMIT_CUSTOM_AGENT_URL,
+            headers=headers,
+            files=files,
+            verify=VERIFY_SSL,
+        )
+
+    logger.info(
+        "Submit custom agent '%s' → %s",
+        os.path.basename(file_path), response.status_code,
+    )
+    return response
+
+
+def update_custom_agent_version(agent_id, file_path, token=None):
+    """Upload a new version of an existing custom agent (multipart/form-data)."""
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+
+    # Remove Content-Type so requests sets the multipart boundary.
+    auth_headers = _auth_headers(token)
+    headers = {
+        k: v for k, v in auth_headers.items()
+        if k.lower() != "content-type"
+    }
+    headers["Accept"] = "application/json"
+
+    url = UPDATE_CUSTOM_AGENT_VERSION_URL.format(agent_id=agent_id)
+    with open(file_path, "rb") as f:
+        files = {"file": (os.path.basename(file_path), f, mime_type)}
+        response = requests.post(
+            url,
+            headers=headers,
+            files=files,
+            verify=VERIFY_SSL,
+        )
+
+    logger.info(
+        "Update custom agent version id=%s ('%s') → %s",
+        agent_id, os.path.basename(file_path), response.status_code,
+    )
+    return response
+
+
+def approve_custom_agent(agent_id, token=None):
+    """Approve a custom agent (admin-only) — extracts it to the runtime dir."""
+    url = APPROVE_CUSTOM_AGENT_URL.format(agent_id=agent_id)
+    response = requests.post(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Approve custom agent id=%s → %s", agent_id, response.status_code)
+    return response
+
+
+def decline_custom_agent(agent_id, feedback=None, token=None):
+    """Decline a custom agent (admin-only) with optional feedback."""
+    url = DECLINE_CUSTOM_AGENT_URL.format(agent_id=agent_id)
+    payload = {}
+    if feedback is not None:
+        payload["feedback"] = feedback
+
+    response = requests.post(
+        url,
+        json=payload,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Decline custom agent id=%s → %s", agent_id, response.status_code)
+    return response
+
+
+def submit_custom_agent_feedback(agent_id, message, feedback_type=None, token=None):
+    """Submit feedback for a custom agent (admin-only)."""
+    url = FEEDBACK_CUSTOM_AGENT_URL.format(agent_id=agent_id)
+    payload = {"message": message}
+    if feedback_type is not None:
+        payload["feedback_type"] = feedback_type
+
+    response = requests.post(
+        url,
+        json=payload,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Feedback custom agent id=%s → %s", agent_id, response.status_code)
+    return response
+
+
+def download_custom_agent(agent_id, token=None):
+    """Download a custom agent's .ncp package (admin and owner). Returns bytes."""
+    url = DOWNLOAD_CUSTOM_AGENT_URL.format(agent_id=agent_id)
+    response = requests.get(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Download custom agent id=%s → %s (%s bytes)",
+        agent_id, response.status_code, len(response.content),
+    )
+    return response
+
+
+def can_submit_custom_agent(token=None):
+    """Check whether the caller can submit a new custom agent."""
+    response = requests.get(
+        CAN_SUBMIT_AGENT_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Can submit custom agent → %s", response.status_code)
+    return response
+
+
+def remove_custom_agent(agent_name, token=None):
+    """Remove a custom agent by name (admin-only)."""
+    url = DELETE_CUSTOM_AGENT_URL.format(agent_name=agent_name)
+    response = requests.delete(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Remove custom agent '%s' → %s", agent_name, response.status_code)
+    return response
+
+
+def remove_user_custom_agent(agent_name, allow_force_delete=None, token=None):
+    """Remove a custom agent (user-scoped) by name.
+
+    Pass allow_force_delete=True to force removal even when the agent is still
+    referenced elsewhere (e.g. by background jobs).
+    """
+    url = DELETE_USER_CUSTOM_AGENT_URL.format(agent_name=agent_name)
+    params = {}
+    if allow_force_delete is not None:
+        params["allow_force_delete"] = allow_force_delete
+
+    response = requests.delete(
+        url,
+        params=params,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Remove user custom agent '%s' (force=%s) → %s",
+        agent_name, allow_force_delete, response.status_code,
+    )
     return response

@@ -325,3 +325,59 @@ TEST_BG_JOB_UPDATE_TRIGGER_TYPE          = "scheduled"
 TEST_BG_JOB_UPDATE_CRON                  = "*/6 * * * *"
 TEST_BG_JOB_UPDATE_TIMEZONE              = "UTC"
 TEST_BG_JOB_UPDATE_NOTIFICATION_CHANNELS = ["in_app"]
+
+# =========================
+# CUSTOM AGENTS API ENDPOINTS  (19 endpoints total)
+# =========================
+ONBOARD_CUSTOM_AGENT_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/onboard"
+LIST_CUSTOM_AGENTS_URL   = f"{NCP_BASE_URL}/api/v1/custom_agents/list"
+BG_ELIGIBLE_AGENTS_URL   = f"{NCP_BASE_URL}/api/v1/custom_agents/background-eligible"
+GET_CUSTOM_AGENT_URL     = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_name}}"
+DISABLE_CUSTOM_AGENT_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_name}}/disable"
+ENABLE_CUSTOM_AGENT_URL  = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_name}}/enable"
+ENABLE_BG_CUSTOM_AGENT_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_name}}/enable-background"
+DISABLE_BG_CUSTOM_AGENT_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_name}}/disable-background"
+ADMIN_LIST_CUSTOM_AGENTS_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/admin/list"
+MY_CUSTOM_AGENTS_URL     = f"{NCP_BASE_URL}/api/v1/custom_agents/user/my-agent"
+SUBMIT_CUSTOM_AGENT_URL  = f"{NCP_BASE_URL}/api/v1/custom_agents/user/submit"
+UPDATE_CUSTOM_AGENT_VERSION_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_id}}/version"
+APPROVE_CUSTOM_AGENT_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_id}}/approve"
+DECLINE_CUSTOM_AGENT_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_id}}/decline"
+FEEDBACK_CUSTOM_AGENT_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_id}}/feedback"
+DOWNLOAD_CUSTOM_AGENT_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_id}}/download"
+CAN_SUBMIT_AGENT_URL     = f"{NCP_BASE_URL}/api/v1/custom_agents/user/can-submit-agent"
+DELETE_CUSTOM_AGENT_URL  = f"{NCP_BASE_URL}/api/v1/custom_agents/{{agent_name}}"
+DELETE_USER_CUSTOM_AGENT_URL = f"{NCP_BASE_URL}/api/v1/custom_agents/user/{{agent_name}}"
+
+# Onboard test data. The .ncp package must be placed alongside the test files
+# (same folder). agent_name is the name embedded in that package.
+TEST_CA_PACKAGE_FILENAME = "calculator-agent.ncp"
+TEST_CA_AGENT_NAME       = "calculator-agent"
+
+# Fallback agent_id for the id-based steps (version upload, etc.) when CA01 /
+# CA02 have not captured one at runtime — e.g. running a step in isolation.
+# Point this at a real custom-agent id in the target instance.
+TEST_CA_AGENT_ID         = 3
+
+# CA12 (version bump) needs a SECOND package: the SAME filename
+# (TEST_CA_PACKAGE_FILENAME — the platform keys on the agent name inside the
+# package, so the file must NOT be renamed) but a HIGHER version baked into its
+# toml. Two files can't share a name in one folder, so the bumped package lives
+# in this subfolder (relative to the test files). CA01/CA11 use the base file in
+# the test dir; CA12 uses <test_dir>/<subdir>/calculator-agent.ncp.
+TEST_CA_VERSION_SUBDIR   = "agent_version_package"
+
+# Decline (CA14) request body — admin feedback explaining the rejection.
+TEST_CA_DECLINE_FEEDBACK = "not as expected"
+
+# Feedback (CA15) request body.
+TEST_CA_FEEDBACK_MESSAGE = "good"
+TEST_CA_FEEDBACK_TYPE    = "general"
+
+# Can-submit-agent (CA17) expected gate value. superadmin can submit → true.
+# Set to False when running the suite as a restricted role.
+TEST_CA_CAN_SUBMIT_EXPECTED = True
+
+# User-scoped remove (CA19) query flag — force-delete even if the agent is
+# referenced elsewhere (e.g. by background jobs).
+TEST_CA_ALLOW_FORCE_DELETE = True
