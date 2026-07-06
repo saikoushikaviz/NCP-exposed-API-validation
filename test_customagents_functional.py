@@ -73,9 +73,11 @@ Custom Agents APIs together; steps are added as each endpoint spec is provided.
   ── CA11: SUBMIT CUSTOM AGENT ───────────────────────────────────
   Step 11 POST /api/v1/custom_agents/user/submit   (multipart/form-data)
           file: .ncp package (tar.gz)
-          → upload/submit a new custom agent (role-aware). Admin → auto-ACTIVE,
-            regular user → PENDING. Verify 200, a success message, agent_id
-            returned, agent_name echoed, and status is ACTIVE or PENDING.
+          → FIRST delete the existing agent (onboarded in CA01) so submit does
+            a real create rather than a 409 duplicate, then submit (role-aware:
+            admin → ACTIVE, user → PENDING). Verify 200/201, agent_id returned,
+            agent_name echoed, status ACTIVE/PENDING. The NEW agent_id is
+            re-captured so the id-based steps that follow (CA12+) target it.
 
   ── CA12: UPDATE CUSTOM AGENT (NEW VERSION) ─────────────────────
   Step 12 POST /api/v1/custom_agents/{agent_id}/version   (multipart/form-data)
@@ -869,8 +871,17 @@ class TestCustomAgentsFunctionalFlow:
             f"Place '{TEST_CA_PACKAGE_FILENAME}' in the same folder as the test files."
         )
 
+        agent_name = self._target_agent_name()
+
+        # Setup: CA01 already onboarded this agent name, so a submit would 409
+        # (duplicate). Remove the existing agent first so submit exercises a
+        # real create (200/201). Best effort — a 404 here is fine.
+        pre = remove_custom_agent(agent_name, token=ncp_token)
+        logger.info("[CA11] pre-submit cleanup delete '%s' → %s", agent_name, pre.status_code)
+
         resp = submit_custom_agent(ONBOARD_PACKAGE_PATH, token=ncp_token)
         data   = safe_json(resp)
+        passed = resp.status_code in (200, 201)
         pretty = json.dumps(data, indent=2, default=str)
 
         logger.info(
@@ -878,70 +889,63 @@ class TestCustomAgentsFunctionalFlow:
             resp.status_code, pretty,
         )
 
-        message = data.get("message") if isinstance(data, dict) else None
+        agent_id   = data.get("agent_id") if isinstance(data, dict) else None
+        agent_name_out = data.get("agent_name") if isinstance(data, dict) else None
+        status     = data.get("status") if isinstance(data, dict) else None
+        message    = data.get("message") if isinstance(data, dict) else None
 
-        # Two valid outcomes:
-        #   • 200/201 → a fresh submission (agent_id + name + ACTIVE/PENDING status)
-        #   • 409     → the agent already exists (CA01 onboarded the same name
-        #               earlier in this flow) — the endpoint correctly rejects a
-        #               duplicate. Both prove the submit endpoint behaves right.
-        created  = resp.status_code in (200, 201)
-        conflict = resp.status_code == 409
+        has_agent_id = agent_id is not None
+        name_match   = agent_name_out == TEST_CA_AGENT_NAME
+        # Role-aware: admin → ACTIVE, regular user → PENDING.
+        status_ok    = status in ("ACTIVE", "PENDING")
+        has_message  = bool(message)
 
-        if created:
-            agent_id   = data.get("agent_id") if isinstance(data, dict) else None
-            agent_name = data.get("agent_name") if isinstance(data, dict) else None
-            status     = data.get("status") if isinstance(data, dict) else None
-            checks_ok  = (
-                agent_id is not None
-                and agent_name == TEST_CA_AGENT_NAME
-                and status in ("ACTIVE", "PENDING")
-                and bool(message)
-            )
-            outcome = f"created (agent_id={agent_id}, status={status})"
-        elif conflict:
-            # Duplicate rejection — confirm the message signals "already exists".
-            checks_ok = bool(message) and "exist" in str(message).lower()
-            outcome = "already exists (409 conflict — expected after CA01 onboard)"
-        else:
-            checks_ok = False
-            outcome = "unexpected status"
-
-        passed = (created or conflict) and checks_ok
+        # The re-submitted agent gets a NEW id — refresh the captured id so the
+        # id-based steps that follow (CA12 version, CA13 approve, ...) operate
+        # on this agent and not the deleted one from CA01.
+        if has_agent_id:
+            TestCustomAgentsFunctionalFlow.created_agent_id = agent_id
+        if name_match:
+            TestCustomAgentsFunctionalFlow.created_agent_name = agent_name_out
 
         summary = (
             f"Status         : {resp.status_code} ({'PASS' if passed else 'FAIL'})\n"
+            f"\nSetup:\n"
+            f"  pre-delete '{agent_name}' → {pre.status_code}\n"
             f"\nRequest:\n"
             f"  file         : {TEST_CA_PACKAGE_FILENAME}\n"
             f"\nResult:\n"
-            f"  outcome      : {outcome}\n"
             f"  message      : {message}\n"
+            f"  agent_id     : {agent_id} {'✓' if has_agent_id else '✗'}\n"
+            f"  agent_name   : {agent_name_out} {'✓' if name_match else '✗'}\n"
+            f"  status       : {status} {'✓ (ACTIVE/PENDING)' if status_ok else '✗'}\n"
             f"\nFull Response:\n{pretty}"
         )
 
         report_collector.add_flow(
             step             = 11,
             description      = (
-                f"POST submit custom agent from '{TEST_CA_PACKAGE_FILENAME}' — verify create "
-                f"(200/201: agent_id, name='{TEST_CA_AGENT_NAME}', status ACTIVE/PENDING) OR "
-                f"409 'already exists' when the agent is already onboarded"
+                f"POST submit custom agent from '{TEST_CA_PACKAGE_FILENAME}' (after deleting "
+                f"the existing agent) — verify 200/201, agent_id returned, "
+                f"agent_name='{TEST_CA_AGENT_NAME}', status ACTIVE (admin) or PENDING (user)"
             ),
             api_method       = "POST",
             endpoint         = "/api/v1/custom_agents/user/submit",
-            expected_status  = "200/201/409",
+            expected_status  = "200/201",
             actual_status    = resp.status_code,
             response_summary = summary,
-            passed           = passed,
+            passed           = passed and has_agent_id and name_match and status_ok and has_message,
         )
 
-        assert created or conflict, (
-            f"SUBMIT custom agent: expected 200/201 (created) or 409 (already exists), "
-            f"got {resp.status_code}"
+        assert passed,       f"SUBMIT custom agent failed: expected 200/201, got {resp.status_code}"
+        assert has_agent_id, "Response missing 'agent_id'"
+        assert name_match,   f"agent_name mismatch: expected {TEST_CA_AGENT_NAME!r}, got {agent_name_out!r}"
+        assert status_ok,    f"Expected status ACTIVE or PENDING, got {status!r}"
+        assert has_message,  "Response missing 'message'"
+        logger.info(
+            "[CA11] submitted fresh — agent_id=%s name=%r status=%s (id refreshed for CA12+)",
+            agent_id, agent_name_out, status,
         )
-        assert checks_ok, (
-            f"SUBMIT custom agent response invalid for status {resp.status_code}: {data!r}"
-        )
-        logger.info("[CA11] submit outcome — %s", outcome)
 
     # ── Step 12: UPDATE CUSTOM AGENT (NEW VERSION) ─────────────
     def test_ca12_update_custom_agent_version(self, ncp_token, report_collector):
