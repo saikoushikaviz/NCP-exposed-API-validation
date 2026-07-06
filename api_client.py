@@ -87,6 +87,9 @@ from config import (
     DECLINE_CUSTOM_AGENT_URL, FEEDBACK_CUSTOM_AGENT_URL,
     DOWNLOAD_CUSTOM_AGENT_URL, CAN_SUBMIT_AGENT_URL, DELETE_CUSTOM_AGENT_URL,
     DELETE_USER_CUSTOM_AGENT_URL,
+    LIST_ORGANIZATIONS_URL, CREATE_ORGANIZATION_URL, UPDATE_ORGANIZATION_URL,
+    ASSIGN_ORG_USERS_URL, GET_ORG_USERS_URL, DEACTIVATE_ORGANIZATION_URL,
+    DELETE_ORGANIZATION_URL,
 )
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -2207,4 +2210,110 @@ def remove_user_custom_agent(agent_name, allow_force_delete=None, token=None):
         "Remove user custom agent '%s' (force=%s) → %s",
         agent_name, allow_force_delete, response.status_code,
     )
+    return response
+
+
+# ─────────────────────────────────────────────
+# ORGANIZATIONS
+# ─────────────────────────────────────────────
+
+def list_organizations(token=None):
+    """List all organizations (returns a JSON array)."""
+    response = requests.get(
+        LIST_ORGANIZATIONS_URL,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("List organizations → %s", response.status_code)
+    return response
+
+
+def create_organization(name, description=None, usernames=None, token=None):
+    """Create a new organization."""
+    payload = {"name": name}
+    if description is not None:
+        payload["description"] = description
+    if usernames is not None:
+        payload["usernames"] = usernames
+
+    response = requests.post(
+        CREATE_ORGANIZATION_URL,
+        json=payload,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Create organization '%s' → %s", name, response.status_code)
+    return response
+
+
+def update_organization(org_id, name=None, description=None, is_active=None, token=None):
+    """Update an organization (PUT). Only provided fields are sent."""
+    payload = {}
+    if name is not None:        payload["name"] = name
+    if description is not None: payload["description"] = description
+    if is_active is not None:   payload["is_active"] = is_active
+
+    url = UPDATE_ORGANIZATION_URL.format(org_id=org_id)
+    response = requests.put(
+        url,
+        json=payload,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Update organization id=%s → %s", org_id, response.status_code)
+    return response
+
+
+def assign_users_to_organization(org_id, usernames, token=None):
+    """Assign one or more users to an organization (replaces their current org)."""
+    url = ASSIGN_ORG_USERS_URL.format(org_id=org_id)
+    response = requests.patch(
+        url,
+        json={"usernames": usernames},
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info(
+        "Assign users %s to organization id=%s → %s",
+        usernames, org_id, response.status_code,
+    )
+    return response
+
+
+def get_organization_users(org_id, token=None):
+    """List all users assigned to an organization (returns a JSON array)."""
+    url = GET_ORG_USERS_URL.format(org_id=org_id)
+    response = requests.get(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Get organization users id=%s → %s", org_id, response.status_code)
+    return response
+
+
+def deactivate_organization(org_id, token=None):
+    """Soft-delete (deactivate) an organization."""
+    url = DEACTIVATE_ORGANIZATION_URL.format(org_id=org_id)
+    response = requests.patch(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Deactivate organization id=%s → %s", org_id, response.status_code)
+    return response
+
+
+def delete_organization(org_id, token=None):
+    """Hard-delete (permanently remove) an organization.
+
+    Fails with 400 if any users are still associated — reassign them first.
+    """
+    url = DELETE_ORGANIZATION_URL.format(org_id=org_id)
+    response = requests.delete(
+        url,
+        headers=_auth_headers(token),
+        verify=VERIFY_SSL,
+    )
+    logger.info("Delete organization id=%s → %s", org_id, response.status_code)
     return response

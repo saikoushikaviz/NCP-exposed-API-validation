@@ -381,3 +381,40 @@ TEST_CA_CAN_SUBMIT_EXPECTED = True
 # User-scoped remove (CA19) query flag — force-delete even if the agent is
 # referenced elsewhere (e.g. by background jobs).
 TEST_CA_ALLOW_FORCE_DELETE = True
+
+# =========================
+# ORGANIZATION API ENDPOINTS  (7 endpoints total)
+# =========================
+LIST_ORGANIZATIONS_URL   = f"{NCP_BASE_URL}/api/v1/organizations"
+CREATE_ORGANIZATION_URL  = f"{NCP_BASE_URL}/api/v1/organizations"
+UPDATE_ORGANIZATION_URL  = f"{NCP_BASE_URL}/api/v1/organizations/{{org_id}}"
+ASSIGN_ORG_USERS_URL     = f"{NCP_BASE_URL}/api/v1/organizations/{{org_id}}/users"
+GET_ORG_USERS_URL        = f"{NCP_BASE_URL}/api/v1/organizations/{{org_id}}/users"
+DEACTIVATE_ORGANIZATION_URL = f"{NCP_BASE_URL}/api/v1/organizations/{{org_id}}/deactivate"
+DELETE_ORGANIZATION_URL  = f"{NCP_BASE_URL}/api/v1/organizations/{{org_id}}"
+
+# The seeded default organization id — where OR07 reassigns a deleted org's
+# users before hard-deleting it (delete fails while users are attached).
+DEFAULT_ORG_ID = 1
+
+# A known organization expected in the list (the seeded default org).
+TEST_ORG_NAME = "default"
+# Fallback org id for the id-based steps (get / update / delete) when OR01 has
+# not captured one at runtime — e.g. running a step in isolation.
+TEST_ORG_ID   = 1
+
+# Create Organization (OR02) request body. usernames are optional members to
+# attach; leave empty to avoid a dependency on a specific user existing.
+TEST_ORG_CREATE_NAME        = "Microsoft"
+TEST_ORG_CREATE_DESCRIPTION = "Test"
+TEST_ORG_CREATE_USERNAMES   = []
+
+# Update Organization (OR03) request body.
+TEST_ORG_UPDATE_NAME        = "XBOX"
+TEST_ORG_UPDATE_DESCRIPTION = "test-123"
+TEST_ORG_UPDATE_IS_ACTIVE   = True
+
+# Assign Users To Organization (OR04) — usernames to attach to the (disposable,
+# OR02-created) org. NOTE: this REPLACES each user's current org assignment, so
+# pick user(s) you don't mind moving off their current org. Must be real users.
+TEST_ORG_ASSIGN_USERNAMES   = ["john"]
