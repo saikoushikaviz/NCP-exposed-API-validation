@@ -168,31 +168,36 @@ class TestDataConnectorsFunctionalFlow:
     
     # ── Step 5: DEACTIVATE CONNECTOR ───────────────────────────────
     def test_dc05_deactivate_connector(self, ncp_token, report_collector, flow_state):
-        # Use a known pre-existing connector (id=2) that has a real container_id.
-        # The dynamically created connector uses API mode and never gets a container.
-        STABLE_CONNECTOR_ID = 2
-        logger.info("[DC05] Using stable connector id=%s for DEACTIVATE", STABLE_CONNECTOR_ID)
+        # Operate on the connector captured in DC02 (created/found at runtime),
+        # so this targets a connector that actually exists on the target box
+        # rather than a hardcoded id.
+        connector_id = flow_state.get("connector_id")
+        if not connector_id or connector_id == "unknown_id":
+            pytest.skip("No connector_id captured in DC02 — skipping DEACTIVATE")
+        logger.info("[DC05] Using connector id=%s for DEACTIVATE", connector_id)
 
-        resp = deactivate_data_connector(STABLE_CONNECTOR_ID, ncp_token)
+        resp = deactivate_data_connector(connector_id, ncp_token)
         passed, data, code = _flow(
             report_collector, 5,
-            f"DEACTIVATE Data Connector id={STABLE_CONNECTOR_ID}",
-            resp, "POST", f"/api/v1/data_connectors/{STABLE_CONNECTOR_ID}/deactivate", (200, 204), prefix="DC"
+            f"DEACTIVATE Data Connector id={connector_id}",
+            resp, "POST", f"/api/v1/data_connectors/{connector_id}/deactivate", (200, 204), prefix="DC"
         )
         assert passed, f"DEACTIVATE failed: expected 200/204, got {code}"
 
 
     # ── Step 6: ACTIVATE CONNECTOR ─────────────────────────────────
     def test_dc06_activate_connector(self, ncp_token, report_collector, flow_state):
-        # Re-activate the same stable connector id=2 to restore its original state.
-        STABLE_CONNECTOR_ID = 2
-        logger.info("[DC06] Using stable connector id=%s for ACTIVATE", STABLE_CONNECTOR_ID)
+        # Re-activate the same connector captured in DC02 to restore its state.
+        connector_id = flow_state.get("connector_id")
+        if not connector_id or connector_id == "unknown_id":
+            pytest.skip("No connector_id captured in DC02 — skipping ACTIVATE")
+        logger.info("[DC06] Using connector id=%s for ACTIVATE", connector_id)
 
-        resp = activate_data_connector(STABLE_CONNECTOR_ID, ncp_token)
+        resp = activate_data_connector(connector_id, ncp_token)
         passed, data, code = _flow(
             report_collector, 6,
-            f"ACTIVATE Data Connector id={STABLE_CONNECTOR_ID}",
-            resp, "POST", f"/api/v1/data_connectors/{STABLE_CONNECTOR_ID}/activate", (200, 204), prefix="DC"
+            f"ACTIVATE Data Connector id={connector_id}",
+            resp, "POST", f"/api/v1/data_connectors/{connector_id}/activate", (200, 204), prefix="DC"
         )
         assert passed, f"ACTIVATE failed: expected 200/204, got {code}"
 

@@ -205,8 +205,8 @@ GET_PROJECT_FILE_URL      = f"{NCP_BASE_URL}/api/v1/projects/{{project_id}}/file
 UPDATE_PROJECT_FILE_URL   = f"{NCP_BASE_URL}/api/v1/projects/{{project_id}}/files/{{file_id}}"
 DOWNLOAD_PROJECT_FILE_URL = f"{NCP_BASE_URL}/api/v1/projects/{{project_id}}/files/{{file_id}}/download"
 
-TEST_PROJECT_FILES_PROJECT_ID = 229
-TEST_PROJECT_FILE_ID          = 6
+TEST_PROJECT_FILES_PROJECT_ID = 12
+TEST_PROJECT_FILE_ID          = 3
 
 # =========================
 # ADMIN FILES API ENDPOINTS
@@ -216,8 +216,11 @@ GET_ADMIN_FILE_URL      = f"{NCP_BASE_URL}/api/v1/admin/files/{{file_id}}"
 UPDATE_ADMIN_FILE_URL   = f"{NCP_BASE_URL}/api/v1/admin/files/{{file_id}}"
 DOWNLOAD_ADMIN_FILE_URL = f"{NCP_BASE_URL}/api/v1/admin/files/{{file_id}}/download"
 
-TEST_ADMIN_FILE_ID       = 1
-TEST_ADMIN_FILES_ROLE_ID = 19
+# role_id filter returns only files explicitly scoped to a role; an
+# "everyone"-access file is listed only when no role_id filter is applied, so
+# leave role_id None to list all admin files.
+TEST_ADMIN_FILE_ID       = 7
+TEST_ADMIN_FILES_ROLE_ID = None
 
 # =========================
 # EXPORTS API ENDPOINTS

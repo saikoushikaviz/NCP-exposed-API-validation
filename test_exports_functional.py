@@ -115,6 +115,33 @@ def _flow(collector, step, description, resp, method, endpoint,
 
 class TestExportsFunctionalFlow:
 
+    # Probe cache: a real (export_id, conversation_id) discovered at runtime so
+    # the id-based steps operate on data that actually exists on the target box.
+    _probed = False
+    _export_id = None
+    _conversation_id = None
+
+    @classmethod
+    def _probe_export(cls, token):
+        """Find any existing export in the configured project (unfiltered) and
+        cache its export_id + conversation_id. Returns (export_id, conv_id) or
+        (None, None) if the box has no exports."""
+        if cls._probed:
+            return cls._export_id, cls._conversation_id
+        cls._probed = True
+        resp = list_exports(project_id=TEST_EXPORTS_PROJECT_ID, token=token)
+        data = safe_json(resp)
+        exports = data if isinstance(data, list) \
+                  else data.get("data", []) if isinstance(data, dict) else []
+        if exports:
+            cls._export_id = exports[0].get("export_id")
+            cls._conversation_id = exports[0].get("conversation_id")
+        logger.info(
+            "[EX] probe → export_id=%s conversation_id=%s (found %d export(s))",
+            cls._export_id, cls._conversation_id, len(exports),
+        )
+        return cls._export_id, cls._conversation_id
+
     # ── Step 1: LIST EXPORTS ───────────────────────────────────
     def test_ex01_list_exports(self, ncp_token, report_collector):
         project_id      = TEST_EXPORTS_PROJECT_ID
@@ -202,7 +229,9 @@ class TestExportsFunctionalFlow:
     # ── Step 2: GET EXPORT METADATA ────────────────────────────
     def test_ex02_get_export_metadata(self, ncp_token, report_collector):
         project_id = TEST_EXPORTS_PROJECT_ID
-        export_id  = TEST_EXPORT_ID
+        export_id, _conv = self._probe_export(ncp_token)
+        if not export_id:
+            pytest.skip("No exports exist in this project — skipping get-export-metadata")
 
         resp = get_export(project_id, export_id, ncp_token)
         data   = safe_json(resp)
@@ -271,7 +300,9 @@ class TestExportsFunctionalFlow:
     # ── Step 3: DOWNLOAD EXPORT ────────────────────────────────
     def test_ex03_download_export(self, ncp_token, report_collector):
         project_id = TEST_EXPORTS_PROJECT_ID
-        export_id  = TEST_EXPORT_ID
+        export_id, _conv = self._probe_export(ncp_token)
+        if not export_id:
+            pytest.skip("No exports exist in this project — skipping download-export")
 
         resp = download_export(project_id, export_id, ncp_token)
         passed = resp.status_code == 200
@@ -326,7 +357,9 @@ class TestExportsFunctionalFlow:
     # ── Step 4: PREVIEW EXPORT ─────────────────────────────────
     def test_ex04_preview_export(self, ncp_token, report_collector):
         project_id = TEST_EXPORTS_PROJECT_ID
-        export_id  = TEST_EXPORT_ID
+        export_id, _conv = self._probe_export(ncp_token)
+        if not export_id:
+            pytest.skip("No exports exist in this project — skipping preview-export")
 
         resp = preview_export(project_id, export_id, ncp_token)
         data   = safe_json(resp)
@@ -397,7 +430,9 @@ class TestExportsFunctionalFlow:
 
     # ── Step 5: LIST CONVERSATION EXPORTS ──────────────────────
     def test_ex05_list_conversation_exports(self, ncp_token, report_collector):
-        conversation_id = TEST_EXPORT_CONVERSATION_ID
+        _eid, conversation_id = self._probe_export(ncp_token)
+        if not conversation_id:
+            pytest.skip("No exports exist in this project — skipping conversation-exports list")
 
         resp = list_conversation_exports(conversation_id, ncp_token)
         data   = safe_json(resp)
@@ -454,7 +489,9 @@ class TestExportsFunctionalFlow:
 
     # ── Step 6: DOWNLOAD USER EXPORT (no project scope) ────────
     def test_ex06_download_user_export(self, ncp_token, report_collector):
-        export_id = TEST_EXPORT_ID
+        export_id, _conv = self._probe_export(ncp_token)
+        if not export_id:
+            pytest.skip("No exports exist in this project — skipping download-user-export")
 
         resp = download_user_export(export_id, ncp_token)
         passed = resp.status_code == 200
@@ -507,7 +544,9 @@ class TestExportsFunctionalFlow:
 
     # ── Step 7: PREVIEW USER EXPORT (no project scope) ─────────
     def test_ex07_preview_user_export(self, ncp_token, report_collector):
-        export_id = TEST_EXPORT_ID
+        export_id, _conv = self._probe_export(ncp_token)
+        if not export_id:
+            pytest.skip("No exports exist in this project — skipping preview-user-export")
 
         resp = preview_user_export(export_id, ncp_token)
         data   = safe_json(resp)
@@ -577,7 +616,9 @@ class TestExportsFunctionalFlow:
     # ── Step 8: DELETE EXPORT (destructive) ────────────────────
     def test_ex08_delete_export(self, ncp_token, report_collector):
         project_id = TEST_EXPORTS_PROJECT_ID
-        export_id  = TEST_EXPORT_DELETE_ID
+        export_id, _conv = self._probe_export(ncp_token)
+        if not export_id:
+            pytest.skip("No exports exist in this project — skipping delete-export")
 
         # ── DELETE ──
         resp = delete_export(project_id, export_id, ncp_token)

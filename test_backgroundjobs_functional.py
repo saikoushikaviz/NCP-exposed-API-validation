@@ -116,6 +116,7 @@ from api_client import (
     list_background_job_runs,
     get_background_job_run,
     delete_background_job,
+    get_projects,
     safe_json,
 )
 from config import (
@@ -188,6 +189,31 @@ class TestBackgroundJobsFunctionalFlow:
 
     # Captured at runtime by BJ11 (list runs) so BJ12 can fetch a real run.
     sample_message_id = None
+
+    # Resolved at runtime from the projects list so create/list target a real
+    # project the caller belongs to (instead of a hardcoded id that may drift).
+    resolved_project_id = None
+
+    @classmethod
+    def _resolve_project_id(cls, token):
+        """A valid project_id to use for create/list: the first project returned
+        by GET /projects (caller is a member), cached; falls back to config."""
+        if cls.resolved_project_id is not None:
+            return cls.resolved_project_id
+        try:
+            data = safe_json(get_projects(token))
+            projs = data if isinstance(data, list) \
+                    else data.get("projects", []) if isinstance(data, dict) else []
+            for p in projs:
+                if isinstance(p, dict) and p.get("project_id") is not None:
+                    cls.resolved_project_id = p["project_id"]
+                    break
+        except Exception as exc:  # pragma: no cover - best effort
+            logger.warning("[BJ] project resolve failed: %s", exc)
+        if cls.resolved_project_id is None:
+            cls.resolved_project_id = TEST_BG_JOB_PROJECT_ID
+        logger.info("[BJ] using project_id=%s", cls.resolved_project_id)
+        return cls.resolved_project_id
 
     @classmethod
     def _target_job_id(cls):
@@ -317,7 +343,7 @@ class TestBackgroundJobsFunctionalFlow:
 
     # ── Step 3: CREATE BACKGROUND JOB ──────────────────────────
     def test_bj03_create_background_job(self, ncp_token, report_collector):
-        project_id = TEST_BG_JOB_PROJECT_ID
+        project_id = self._resolve_project_id(ncp_token)
         agent_name = TEST_BG_JOB_AGENT_NAME
         prompt     = TEST_BG_JOB_PROMPT
         cron       = TEST_BG_JOB_CRON
@@ -409,7 +435,8 @@ class TestBackgroundJobsFunctionalFlow:
 
     # ── Step 4: LIST BACKGROUND JOBS ───────────────────────────
     def test_bj04_list_background_jobs(self, ncp_token, report_collector):
-        project_id      = TEST_BG_JOBS_PROJECT_ID
+        # Same project BJ03 created the job in, so the created job is in the list.
+        project_id      = self._resolve_project_id(ncp_token)
         mine_only       = TEST_BG_JOBS_MINE_ONLY
         include_removed = TEST_BG_JOBS_INCLUDE_REMOVED
 
@@ -907,7 +934,13 @@ class TestBackgroundJobsFunctionalFlow:
             and isinstance(failed_runs, int)
             and (succeeded_runs + failed_runs) == total_runs
         )
-        rate_valid = isinstance(success_rate, (int, float)) and 0 <= success_rate <= 1
+        # success_rate is null when there are no counted runs yet (e.g. the
+        # job's only run is still in progress → total_runs == 0). Accept None
+        # in that case; otherwise it must be a ratio in [0, 1].
+        rate_valid = (
+            (success_rate is None and total_runs == 0)
+            or (isinstance(success_rate, (int, float)) and 0 <= success_rate <= 1)
+        )
 
         logger.info(
             "[BJ11] GET /api/v1/background_jobs/%s/runs → %s (runs=%d, total_runs=%s)",
@@ -978,12 +1011,20 @@ class TestBackgroundJobsFunctionalFlow:
         msg_match = isinstance(data, dict) and str(data.get("message_id")) == str(message_id)
 
         has_status   = isinstance(data, dict) and "status" in data
+        run_status   = data.get("status") if isinstance(data, dict) else None
+        # output + usage are only populated once a run has SUCCEEDED. A run
+        # still in progress ("running") or "skipped" legitimately has neither,
+        # so only require them for a succeeded run.
+        is_succeeded = run_status == "succeeded"
         has_output   = isinstance(data, dict) and "output" in data
         timeline     = data.get("timeline") if isinstance(data, dict) else None
         timeline_ok  = isinstance(timeline, list)
         usage        = data.get("usage") if isinstance(data, dict) else None
         usage_keys   = ("total_tokens", "prompt_tokens", "completion_tokens", "iterations")
-        usage_ok     = isinstance(usage, dict) and all(k in usage for k in usage_keys)
+        usage_present = isinstance(usage, dict) and all(k in usage for k in usage_keys)
+        # Conditional: enforced only when the run has succeeded.
+        output_ok = has_output if is_succeeded else True
+        usage_ok  = usage_present if is_succeeded else True
 
         logger.info(
             "[BJ12] GET /api/v1/background_jobs/%s/runs/%s → %s",
@@ -998,11 +1039,13 @@ class TestBackgroundJobsFunctionalFlow:
             f"\nResult:\n"
             f"  job_id match  : {'YES (PASS)' if id_match else 'NO (FAIL)'}\n"
             f"  message match : {'YES (PASS)' if msg_match else 'NO (FAIL)'}\n"
-            f"  status        : {data.get('status') if isinstance(data, dict) else None}\n"
-            f"  output present: {'YES (PASS)' if has_output else 'NO (FAIL)'}\n"
+            f"  status        : {run_status}\n"
+            f"  output present: {'YES' if has_output else 'no'} "
+            f"({'required' if is_succeeded else 'optional — run not succeeded'})\n"
             f"  timeline list : {'YES (PASS)' if timeline_ok else 'NO (FAIL)'} "
             f"({len(timeline) if timeline_ok else 'n/a'} phase(s))\n"
-            f"  usage keys ok : {'YES (PASS)' if usage_ok else 'NO (FAIL)'}\n"
+            f"  usage keys ok : {'YES' if usage_present else 'no'} "
+            f"({'required' if is_succeeded else 'optional — run not succeeded'})\n"
             f"\nResponse (capped):\n{pretty_capped}"
         )
 
@@ -1010,8 +1053,8 @@ class TestBackgroundJobsFunctionalFlow:
             step             = 12,
             description      = (
                 f"GET background job run {job_id}/{message_id} — verify 200, job_id + "
-                f"message_id match, output present, timeline is a list, usage object "
-                f"carries token/iteration keys"
+                f"message_id match, timeline is a list; output + usage token keys "
+                f"required only when the run has succeeded"
             ),
             api_method       = "GET",
             endpoint         = "/api/v1/background_jobs/{job_id}/runs/{message_id}",
@@ -1019,16 +1062,16 @@ class TestBackgroundJobsFunctionalFlow:
             actual_status    = resp.status_code,
             response_summary = summary,
             passed           = (passed and id_match and msg_match and has_status
-                                and has_output and timeline_ok and usage_ok),
+                                and timeline_ok and output_ok and usage_ok),
         )
 
         assert passed,       f"GET run detail failed: expected 200, got {resp.status_code}"
         assert id_match,     f"Returned job_id mismatch: expected {job_id}, got {data.get('job_id')}"
         assert msg_match,    f"Returned message_id mismatch: expected {message_id}, got {data.get('message_id')}"
         assert has_status,   "Run detail missing 'status'"
-        assert has_output,   "Run detail missing 'output'"
         assert timeline_ok,  "Run detail 'timeline' is missing or not a list"
-        assert usage_ok,     f"Run detail 'usage' missing keys {usage_keys}"
+        assert output_ok,    "Run detail missing 'output' for a succeeded run"
+        assert usage_ok,     f"Run detail 'usage' missing keys {usage_keys} for a succeeded run"
         logger.info(
             "[BJ12] fetched run %s/%s — status=%s",
             job_id, message_id, data.get("status"),
