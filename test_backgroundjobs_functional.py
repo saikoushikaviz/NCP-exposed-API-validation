@@ -997,7 +997,12 @@ class TestBackgroundJobsFunctionalFlow:
     # ── Step 12: GET BACKGROUND JOB RUN ────────────────────────
     def test_bj12_get_background_job_run(self, ncp_token, report_collector):
         job_id     = self._target_job_id()
-        message_id = self._target_message_id()
+        # Use the run captured by BJ11. A brand-new job may not have executed
+        # yet (cron hasn't fired), so BJ11 finds no runs → nothing to fetch.
+        # Skip rather than hit a stale/hardcoded message_id that 404s.
+        message_id = TestBackgroundJobsFunctionalFlow.sample_message_id
+        if message_id is None:
+            pytest.skip("No run captured by BJ11 (job has no runs yet) — skipping run-detail")
 
         resp = get_background_job_run(job_id, message_id, token=ncp_token)
         data   = safe_json(resp)
