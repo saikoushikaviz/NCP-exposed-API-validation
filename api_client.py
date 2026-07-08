@@ -90,6 +90,8 @@ from config import (
     LIST_ORGANIZATIONS_URL, CREATE_ORGANIZATION_URL, UPDATE_ORGANIZATION_URL,
     ASSIGN_ORG_USERS_URL, GET_ORG_USERS_URL, DEACTIVATE_ORGANIZATION_URL,
     DELETE_ORGANIZATION_URL,
+    CREATE_SLACK_CONFIG_URL, GET_ALL_SLACK_CONFIGS_URL, SLACK_CHANNELS_URL,
+    UPDATE_SLACK_CONFIG_URL, DELETE_SLACK_CONFIG_URL,
 )
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -2316,4 +2318,54 @@ def delete_organization(org_id, token=None):
         verify=VERIFY_SSL,
     )
     logger.info("Delete organization id=%s → %s", org_id, response.status_code)
+    return response
+
+# ─────────────────────────────────────────────
+# SLACK CONFIGURATION
+# ─────────────────────────────────────────────
+
+def create_slack_config(webhook_url, channel_name, channel_id, token=None):
+    """Create a Slack configuration. Body is a raw JSON object (no pydantic
+    model), using the documented camelCase field names."""
+    payload = {"webhookURL": webhook_url, "channelName": channel_name, "channelId": channel_id}
+    response = requests.post(
+        CREATE_SLACK_CONFIG_URL, json=payload,
+        headers=_auth_headers(token), verify=VERIFY_SSL,
+    )
+    logger.info("Create slack config → %s", response.status_code)
+    return response
+
+
+def get_all_slack_configs(token=None):
+    """List all Slack configurations (full records, incl. webhook_url)."""
+    response = requests.get(
+        GET_ALL_SLACK_CONFIGS_URL, headers=_auth_headers(token), verify=VERIFY_SSL,
+    )
+    logger.info("Get all slack configs → %s", response.status_code)
+    return response
+
+
+def get_slack_channels(token=None):
+    """List Slack channels for the FE picker ({channel, channel_id}, no webhook)."""
+    response = requests.get(
+        SLACK_CHANNELS_URL, headers=_auth_headers(token), verify=VERIFY_SSL,
+    )
+    logger.info("Get slack channels → %s", response.status_code)
+    return response
+
+
+def update_slack_config(config_id, webhook_url, channel_name, channel_id, token=None):
+    """Update a Slack configuration by id."""
+    payload = {"webhookURL": webhook_url, "channelName": channel_name, "channelId": channel_id}
+    url = UPDATE_SLACK_CONFIG_URL.format(config_id=config_id)
+    response = requests.put(url, json=payload, headers=_auth_headers(token), verify=VERIFY_SSL)
+    logger.info("Update slack config id=%s → %s", config_id, response.status_code)
+    return response
+
+
+def delete_slack_config(config_id, token=None):
+    """Delete a Slack configuration by id."""
+    url = DELETE_SLACK_CONFIG_URL.format(config_id=config_id)
+    response = requests.delete(url, headers=_auth_headers(token), verify=VERIFY_SSL)
+    logger.info("Delete slack config id=%s → %s", config_id, response.status_code)
     return response

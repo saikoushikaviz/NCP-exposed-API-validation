@@ -421,3 +421,21 @@ TEST_ORG_UPDATE_IS_ACTIVE   = True
 # OR02-created) org. NOTE: this REPLACES each user's current org assignment, so
 # pick user(s) you don't mind moving off their current org. Must be real users.
 TEST_ORG_ASSIGN_USERNAMES   = ["john"]
+# =========================
+# SLACK CONFIGURATION API ENDPOINTS  (5 endpoints)
+# =========================
+CREATE_SLACK_CONFIG_URL   = f"{NCP_BASE_URL}/api/v1/slack_configuration/create"
+GET_ALL_SLACK_CONFIGS_URL = f"{NCP_BASE_URL}/api/v1/slack_configuration/get_all"
+SLACK_CHANNELS_URL        = f"{NCP_BASE_URL}/api/v1/slack_configuration/channels"
+UPDATE_SLACK_CONFIG_URL   = f"{NCP_BASE_URL}/api/v1/slack_configuration/update/{{config_id}}"
+DELETE_SLACK_CONFIG_URL   = f"{NCP_BASE_URL}/api/v1/slack_configuration/delete/{{config_id}}"
+
+# Slack config test data. create/update store the string verbatim (no live
+# Slack call), so a placeholder webhook is fine — no real secret needed.
+# Request uses camelCase (webhookURL/channelName/channelId); the stored/returned
+# fields are snake_case (webhook_url/channel/channel_id).
+TEST_SLACK_WEBHOOK_URL         = ""
+TEST_SLACK_CHANNEL_NAME        = "automation-check"
+TEST_SLACK_CHANNEL_ID          = "C0AUTOMATION"
+TEST_SLACK_UPDATE_WEBHOOK_URL  = ""
+TEST_SLACK_UPDATE_CHANNEL_NAME = "automation-check-renamed"
